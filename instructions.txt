@@ -1,0 +1,4 @@
+> go build server.go
+> server.exe
+> npm install
+> npm start
