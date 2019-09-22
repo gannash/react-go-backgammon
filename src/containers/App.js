@@ -37,11 +37,9 @@ class App extends Component {
   }
 
   handleGameStateUpdate(data) {
-    if (data.error && data.error === "NO_MOVES") {
-      this.updateStateFromServer(data.state);
+    this.updateStateFromServer(data);
+    if (data.Status && data.Status === "NO_MOVES") {
       setTimeout(this.getAndUpdateStateFromServer, 2000);
-    } else {
-      this.updateStateFromServer(data);
     }
   }
 
@@ -69,7 +67,12 @@ class App extends Component {
     const grayBar = { checkersP1: board.whiteEaten, checkersP2: board.blackEaten };
     const outSideBar = { checkersP1: board.whiteOutCheckers, checkersP2: board.blackOutCheckers };
     const movingChecker = false;
-    const gameStatus = 11;
+    let gameStatus = 11;
+    if (data.WhiteWon) {
+      gameStatus = 60;
+    } else if (data.BlackWon) {
+      gameStatus = 70;
+    }
     const points = board.columns
       .map((pos, i) => ({ pos, i }))
       .filter(data => data.pos.whiteCheckers || data.pos.BlackCheckers)
@@ -186,7 +189,11 @@ class App extends Component {
 
     //get points and status
     const points = moves.points;
-    const gameStatus = moves.gameStatus;
+    let gameStatus = moves.gameStatus;
+
+    if(this.state.gameStatus === 60 || this.state.gameStatus === 70) {
+      gameStatus = this.state.gameStatus;
+    }
 
     //reset history
     const currentPosition = 0;
@@ -290,6 +297,9 @@ class App extends Component {
           // }
         }
       }
+    }
+    if (this.state.gameStatus !== 70 && this.state.gameStatus !== 60) {
+      gameStatus = this.state.gameStatus;
     }
     return { points: newPoints, gameStatus: gameStatus };
   }
@@ -478,7 +488,7 @@ class App extends Component {
       return movingChecker - die;
     })();
 
-    if (destination === 24) {
+    if (destination > 23 || destination < -1) {
       destination = -1;
     }
 
@@ -672,16 +682,17 @@ class App extends Component {
 
   getMenu = () => {
 
-    if (this.state.showMenu) {
-      return null;
-      // return <Menu
-      //   newGameHandler={this.setupNewGameHandler}
-      //   toggleMenuHandler={this.toggleMenuHandler}
-      //   gameStatus={this.state.gameStatus}
-      //   players={this.state.players}
-      // />;
+    // if (this.state.showMenu) {
+    //   return null;
+    console.log(this.state.gameStatus);
+    if(this.state.gameStatus === 60 || this.state.gameStatus === 70) {
+      return <Menu
+        newGameHandler={this.setupNewGameHandler}
+        toggleMenuHandler={this.toggleMenuHandler}
+        gameStatus={this.state.gameStatus}
+        players={this.state.players}
+      />;
     }
-
   }
 
   render() {

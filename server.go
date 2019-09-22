@@ -21,6 +21,7 @@ type GameState struct {
 	Dice      []int
 	WhiteWon  bool
 	BlackWon  bool
+	Status    string
 	state     string //waiting for players, game on, game ended
 }
 
@@ -43,11 +44,6 @@ type Player struct {
 type Column struct {
 	WhiteCheckers int `json:"whiteCheckers"`
 	BlackCheckers int `json:"BlackCheckers"`
-}
-
-type GameStateWithError struct {
-	Error string    `json:"error"`
-	State GameState `json:"state"`
 }
 
 //Board ..
@@ -95,16 +91,16 @@ func getBoardAPI(w http.ResponseWriter, r *http.Request) {
 // }
 
 func sendStateWithError(w http.ResponseWriter) {
-	var gameStateWithError GameStateWithError
-	gameStateWithError.Error = "NO_MOVES"
-	gameStateWithError.State = state
-	json.NewEncoder(w).Encode(gameStateWithError)
+	state.Status = "NO_MOVES"
+	json.NewEncoder(w).Encode(state)
 
 	time.AfterFunc(2*time.Second, switchTurn)
 }
 
 func getStateAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	state.Status = ""
 
 	if !canMove() {
 		sendStateWithError(w)
@@ -152,17 +148,17 @@ func moveAPI(w http.ResponseWriter, r *http.Request) {
 	if !isLegalMove(&state, t.From, t.To) {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "move is illegal")
-
+		return
 		//complete automatic move
-	} else {
-		move(&state, t.From, t.To)
+	}
 
-		if canMove() {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(state)
-		} else {
-			sendStateWithError(w)
-		}
+	move(&state, t.From, t.To)
+
+	if canMove() {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(state)
+	} else {
+		sendStateWithError(w)
 	}
 
 	// fmt.Println(t)
@@ -204,14 +200,14 @@ func registerAPI(w http.ResponseWriter, r *http.Request) {
 	if !isLegalMove(&state, t.From, t.To) {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "move is illegal")
-
+		return
 		//complete automatic move
-	} else {
-		move(&state, t.From, t.To)
+	}
 
-		if !canMove() {
-			sendStateWithError(w)
-		}
+	move(&state, t.From, t.To)
+
+	if !canMove() {
+		sendStateWithError(w)
 	}
 
 	// fmt.Println(t)
@@ -225,10 +221,12 @@ func getState() GameState {
 
 func initState(state *GameState) {
 	state.WhiteTurn = true
+	// state.WhiteTurn = false
 	state.WhiteWon = false
 	state.BlackWon = false
 	initBoard(&state.Board)
 	state.Dice = rollDice()
+	// state.Dice = []int{4, 0, 0, 0}
 	// For tests
 	// state.Dice = []int{6, 6, 6, 6}
 	// state.Board.WhiteEaten = 1
@@ -264,6 +262,9 @@ func rollDice() []int {
 }
 
 func isLegalMove(state *GameState, from int, to int) bool {
+	if !canMove() {
+		return false
+	}
 
 	if state.WhiteWon || state.BlackWon {
 		return false
@@ -325,16 +326,24 @@ func isLegalMove(state *GameState, from int, to int) bool {
 
 			distance := 24 - from
 			diceMatchFound := false
-			for _, itemCopy := range state.Dice {
-				if distance <= itemCopy {
+			for _, die := range state.Dice {
+				if distance == die {
 					diceMatchFound = true
 					break
 				}
 			}
 
-			if !diceMatchFound {
-				return false
+			if diceMatchFound {
+				return true
 			}
+
+			for i := from - 1; i >= 18; i-- {
+				if state.Board.Columns[i].WhiteCheckers > 0 {
+					return false
+				}
+			}
+
+			return true
 
 		} else { //regular play
 
@@ -346,8 +355,8 @@ func isLegalMove(state *GameState, from int, to int) bool {
 			distanceToMove := to - from
 			diceMatch := false
 
-			for _, itemCopy := range state.Dice {
-				if distanceToMove == itemCopy {
+			for _, die := range state.Dice {
+				if distanceToMove == die {
 					diceMatch = true
 					break
 				}
@@ -365,11 +374,7 @@ func isLegalMove(state *GameState, from int, to int) bool {
 
 		}
 
-	}
-
-	//in case it's black's turn
-	if !state.WhiteTurn {
-
+	} else { //in case it's black's turn
 		if from == -1 {
 
 			//no checkers out
@@ -413,18 +418,26 @@ func isLegalMove(state *GameState, from int, to int) bool {
 
 			//check if dice can take out a checker
 
-			distance := from
+			distance := from + 1
 			diceMatchFound := false
-			for _, itemCopy := range state.Dice {
-				if distance <= itemCopy {
+			for _, die := range state.Dice {
+				if distance == die {
 					diceMatchFound = true
 					break
 				}
 			}
 
-			if !diceMatchFound {
-				return false
+			if diceMatchFound {
+				return true
 			}
+
+			for i := from + 1; i <= 5; i++ {
+				if state.Board.Columns[i].BlackCheckers > 0 {
+					return false
+				}
+			}
+
+			return true
 
 		} else { //regular play
 
@@ -507,13 +520,13 @@ func anyCheckerToBearOff() bool {
 	for _, die := range state.Dice {
 		if die > 0 {
 			if state.WhiteTurn {
-				for i := 0; i <= die-1; i++ {
+				for i := 23; i >= 24-die; i-- {
 					if state.Board.Columns[i].WhiteCheckers > 0 {
 						return true
 					}
 				}
 			} else {
-				for i := 23; i >= 24-die; i++ {
+				for i := 0; i <= die-1; i++ {
 					if state.Board.Columns[i].BlackCheckers > 0 {
 						return true
 					}
@@ -569,6 +582,8 @@ func move(state *GameState, from int, to int) int {
 	// }
 
 	//player bringing an eaten checker back into game
+	state.Status = ""
+
 	if from == -1 {
 
 		if state.WhiteTurn {
@@ -655,12 +670,24 @@ func move(state *GameState, from int, to int) int {
 
 	// fmt.Println(dicePlayed)
 
+	minDie := 50
+	minDieIdx := 50
+	foundDie := false
 	for index, die := range state.Dice {
+		if die < minDie && die >= dicePlayed {
+			minDie = die
+			minDieIdx = index
+		}
 		if dicePlayed == die {
 			state.Dice[index] = 0
+			foundDie = true
 			break
 		}
 		// fmt.Printf("deleted die %v: %v\n", index, die)
+	}
+
+	if !foundDie {
+		state.Dice[minDieIdx] = 0
 	}
 
 	//check if all dice were played and if so swith turns
@@ -670,6 +697,12 @@ func move(state *GameState, from int, to int) int {
 		if die != 0 {
 			shouldSwitchTurn = false
 		}
+	}
+
+	if state.WhiteTurn && state.Board.WhiteOutCheckers == 15 {
+		state.WhiteWon = true
+	} else if !state.WhiteTurn && state.Board.BlackOutCheckers == 15 {
+		state.BlackWon = true
 	}
 
 	if shouldSwitchTurn {

@@ -85,7 +85,7 @@ class Menu extends Component {
         const alertNewGame = this.props.gameStatus < 60 ? 12 : 11; //12 shows alert
 
         return <React.Fragment>
-            {this.aboutButton}
+            {/* {this.aboutButton} */}
 
             <button
                 className="btn btn-success"
@@ -189,32 +189,33 @@ class Menu extends Component {
     //Start a new game
     newGameHandler = (newGameStatus) => {
 
-        const content = this.getNewGame(11, this.state.playerNames, this.state.playerStarts);
-        console.log('Starting a new game');
+        alert('not yet implemented');
+        // const content = this.getNewGame(11, this.state.playerNames, this.state.playerStarts);
+        // console.log('Starting a new game');
 
-        if (newGameStatus === 12) {
+        // if (newGameStatus === 12) {
 
-            content.body =
-                <React.Fragment>
-                    <p className="modal-body-t1 modal-body-centralized">Are you sure you want to end the current game?</p>
-                </React.Fragment>
+        //     content.body =
+        //         <React.Fragment>
+        //             <p className="modal-body-t1 modal-body-centralized">Are you sure you want to end the current game?</p>
+        //         </React.Fragment>
 
-            content.footer = <React.Fragment>
-                {this.aboutButton}
-                <button
-                    className="btn btn-danger"
-                    onClick={this.newGameHandler.bind(this, 11)}>New Game
-                    </button>
-            </React.Fragment>;
-        }
+        //     content.footer = <React.Fragment>
+        //         {this.aboutButton}
+        //         <button
+        //             className="btn btn-danger"
+        //             onClick={this.newGameHandler.bind(this, 11)}>New Game
+        //             </button>
+        //     </React.Fragment>;
+        // }
 
-        this.setState({
-            header: content.header,
-            body: content.body,
-            footer: content.footer,
-            menuWidth: content.width,
-            canClose: content.canClose,
-        });
+        // this.setState({
+        //     header: content.header,
+        //     body: content.body,
+        //     footer: content.footer,
+        //     menuWidth: content.width,
+        //     canClose: content.canClose,
+        // });
 
     }
 
@@ -254,7 +255,7 @@ class Menu extends Component {
 
                 <div id="modal-content" className={this.state.menuWidth}>
                     <div id="modal-header">
-                        {this.state.canClose ? <div id="modal-close" onClick={this.props.toggleMenuHandler}>X</div> : null}
+                        {/* {this.state.canClose ? <div id="modal-close" onClick={this.props.toggleMenuHandler}>X</div> : null} */}
                         {this.state.header}
                     </div>
                     <div id="modal-body">
