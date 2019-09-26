@@ -9,6 +9,81 @@ import Menu from '../components/Menu/Menu';
 
 import HttpClient from '../HttpClient';
 
+import GAMEFILE from '../game_result_1569500154082856100.json';
+const PLAY_FROM_FILE = true;
+
+const rectPos = (id) => {
+  const triangles = document.getElementsByClassName('triangle');
+  return !!triangles.length && triangles[id].getBoundingClientRect();
+}
+
+const getSvgPath = (p1, p2) => {
+  const dummyPoint = { left: 0, right: 0 };
+
+  const p1Pos = p1 >= 0 ? rectPos(p1) : dummyPoint;
+  const p2Pos = rectPos(p2);
+
+  if (!p1Pos || !p2Pos) {
+    return '';
+  }
+
+  let p1X = Math.abs((p1Pos.left + p1Pos.right) / 2);
+  let p1Y = Math.abs((p1Pos.top + p1Pos.bottom) / 2);
+  let p2X = Math.abs((p2Pos.left + p2Pos.right) / 2);
+  let p2Y = Math.abs((p2Pos.top + p2Pos.bottom) / 2);
+
+  if (p1 === -1) {
+    p1X = p2X;
+    p1Y = p2Y - 60;
+  }
+
+  return `M ${p1X},${p1Y} L ${p2X},${p2Y}`;
+}
+
+const columnToTriangleNumber = (columnId) => {
+  if (columnId >= 0 && columnId <= 5) { // top-left
+    return 23 - columnId;
+  } else if (columnId > 5 && columnId <= 11) { // bottom-left
+    return 17 - columnId;
+  } else if (columnId > 11 && columnId <= 17) { // top-right
+    return columnId - 12;
+  }
+  // bottom-right
+  return columnId - 6;
+}
+
+const calculatePlayPath = (prevState, nextState) => {
+  let c1 = null, c2 = null;
+  for (let i = 0; i < 24 && c2 === null; i++) {
+    if (prevState.Board.columns[i].whiteCheckers !== nextState.Board.columns[i].whiteCheckers
+      || prevState.Board.columns[i].BlackCheckers !== nextState.Board.columns[i].BlackCheckers) {
+      if (c1 === null) {
+        c1 = i;
+      } else {
+        c2 = i;
+      }
+    }
+  }
+
+  if (prevState.WhiteTurn) {
+    if (nextState.Board.whiteEaten - prevState.Board.whiteEaten < 0) {
+      return { from: -1, to: c1 };
+    }
+    return { from: c1, to: c2 };
+  }
+
+  if (nextState.Board.blackEaten - prevState.Board.blackEaten < 0) {
+    return { from: -1, to: c1 };
+  }
+
+  return { from: c2, to: c1 };
+}
+
+const playPathToTrianglePath = playPath => ({
+  from: columnToTriangleNumber(playPath.from),
+  to: columnToTriangleNumber(playPath.to),
+});
+
 class App extends Component {
   constructor(props) {
     super(props);
@@ -30,15 +105,52 @@ class App extends Component {
     this.updateStateFromServer = this.updateStateFromServer.bind(this);
     this.getAndUpdateStateFromServer = this.getAndUpdateStateFromServer.bind(this);
     this.getStateFromServer = this.getStateFromServer.bind(this);
+    this.runGameFromFile = this.runGameFromFile.bind(this);
+
+    // setTimeout(() => {
+    //   const newPath = this.getSvgPath(0, 12);
+    //   if (newPath) {
+    //     document.getElementById('game-arrow').setAttribute('d', newPath);
+    //   }
+    // }, 2000);
   }
 
   componentDidMount() {
-    this.getAndUpdateStateFromServer();
+    if (PLAY_FROM_FILE) {
+      this.runGameFromFile(GAMEFILE);
+    } else {
+      this.getAndUpdateStateFromServer();
+    }
+  }
+
+  runGameFromFile(data) {
+    let currentStep = 0;
+    let prevState = null;
+    const runGameInterval = setInterval(() => {
+      if (currentStep === data.length - 1) {
+        clearInterval(runGameInterval);
+      }
+      const currentState = data[currentStep++];
+      if (prevState) {
+        const playPath = calculatePlayPath(prevState, currentState);
+        const trianglePlayPath = playPathToTrianglePath(playPath);
+        const arrowPath = getSvgPath(trianglePlayPath.from, trianglePlayPath.to);
+        if (arrowPath) {
+          document.getElementById('game-arrow').setAttribute('d', arrowPath);
+        }
+      }
+
+      setTimeout(() => {
+        this.handleGameStateUpdate(currentState);
+      }, 1000);
+
+      prevState = currentState;
+    }, 2000)
   }
 
   handleGameStateUpdate(data) {
     this.updateStateFromServer(data);
-    if (data.Status && data.Status === "NO_MOVES") {
+    if (data.Status && data.Status.includes("NO_MOVES")) {
       setTimeout(this.getAndUpdateStateFromServer, 2000);
     }
   }
@@ -177,7 +289,7 @@ class App extends Component {
     //   dice[2] = dice[3] = dice[0];
     // }
 
-    console.log("Rolled dice: " + dice);
+    // console.log("Rolled dice: " + dice);
 
     //Get moves and status
     const moves = this.calculateCanMove(
@@ -191,7 +303,7 @@ class App extends Component {
     const points = moves.points;
     let gameStatus = moves.gameStatus;
 
-    if(this.state.gameStatus === 60 || this.state.gameStatus === 70) {
+    if (this.state.gameStatus === 60 || this.state.gameStatus === 70) {
       gameStatus = this.state.gameStatus;
     }
 
@@ -223,7 +335,7 @@ class App extends Component {
   //Calculate possible moves return an object with points and game status
   calculateCanMove = (points, dice, p1IsNext, grayBar) => {
 
-    console.log("calculating possible moves");
+    // console.log("calculating possible moves");
 
     let newPoints = [...points];
     let gameStatus = 50; //No moves available
@@ -441,7 +553,7 @@ class App extends Component {
         }
       }
 
-      console.log("moving checker from point " + (p1IsNext ? movingChecker + 1 : 24 - movingChecker));
+      // console.log("moving checker from point " + (p1IsNext ? movingChecker + 1 : 24 - movingChecker));
     }
     else {
       const moves = this.calculateCanMove(points, this.state.dice, this.state.p1IsNext, this.state.grayBar);
@@ -494,9 +606,9 @@ class App extends Component {
 
     //Logging
     if (destination > 23 || destination < 0) {
-      console.log('Bearing off Checker');
+      // console.log('Bearing off Checker');
     } else {
-      console.log('Moving checker to point ' + (p1IsNext ? destination + 1 : 24 - destination));
+      // console.log('Moving checker to point ' + (p1IsNext ? destination + 1 : 24 - destination));
     }
 
     /*
@@ -577,8 +689,23 @@ class App extends Component {
     }
     */
 
+    // console.log(this.state.points);
+
+    const playerID = (() => {
+      if (movingChecker < 0) {
+        return this.state.p1IsNext ? 0 : 1;
+      }
+
+      const { player } = this.state.points[movingChecker];
+      if (player === 1 || player === 2) {
+        return player - 1;
+      }
+
+      return -50;
+    })();
+
     HttpClient.post('/move', {
-      playerID: p1IsNext ? 0 : 1,
+      playerID,
       from: movingChecker,
       to: destination,
     })
@@ -640,7 +767,7 @@ class App extends Component {
     const outSideBar = { ...history[newPosition].outSideBar };
     const movingChecker = false;
 
-    console.log('Undo last move');
+    // console.log('Undo last move');
 
     const moves = this.calculateCanMove(this.state.history[newPosition].points, dice, p1IsNext, grayBar);
     const points = moves.points;
@@ -684,8 +811,8 @@ class App extends Component {
 
     // if (this.state.showMenu) {
     //   return null;
-    console.log(this.state.gameStatus);
-    if(this.state.gameStatus === 60 || this.state.gameStatus === 70) {
+    // console.log(this.state.gameStatus);
+    if (this.state.gameStatus === 60 || this.state.gameStatus === 70) {
       return <Menu
         newGameHandler={this.setupNewGameHandler}
         toggleMenuHandler={this.toggleMenuHandler}
@@ -696,7 +823,7 @@ class App extends Component {
   }
 
   render() {
-    console.log("Game status is " + this.getGameStatus());
+    // console.log("Game status is " + this.getGameStatus());
 
     return (
       <div id="App">

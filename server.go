@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -71,6 +73,8 @@ var state GameState
 
 var gameManager GameManager
 
+var history []GameState
+
 //////////////////// end of Global Variables /////////////////////////////
 
 //////////////////// functions //////////////////////////////
@@ -91,9 +95,12 @@ func getBoardAPI(w http.ResponseWriter, r *http.Request) {
 // }
 
 func sendStateWithError(w http.ResponseWriter) {
-	state.Status = "NO_MOVES"
-	json.NewEncoder(w).Encode(state)
+	if state.Status != "" {
+		state.Status += "|"
+	}
+	state.Status += "NO_MOVES"
 
+	json.NewEncoder(w).Encode(state)
 	time.AfterFunc(2*time.Second, switchTurn)
 }
 
@@ -133,27 +140,38 @@ func moveAPI(w http.ResponseWriter, r *http.Request) {
 		playerColor = gameManager.player2.color
 	}
 
+	if playerColor == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Wrong playerID")
+		return
+	}
+
 	if playerColor == "White" && !state.WhiteTurn {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "not your turn, it's black's turn ")
+		fmt.Fprintf(w, "not your turn, it's black's turn")
+		return
 	}
 
 	if playerColor == "Black" && state.WhiteTurn {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "not your turn, it's white's turn")
-		fmt.Println("cant move")
+		return
 	}
 
 	//check if the move is correct
 	if !isLegalMove(&state, t.From, t.To) {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "move is illegal")
-		return
+		// w.WriteHeader(http.StatusBadRequest)
+		// fmt.Fprintf(w, "move is illegal, a random move has been played")
+
 		//complete automatic move
+
+		state.Status = "ILLEGAL_MOVE"
+		randomMove()
+		// w.Header().Set("Content-Type", "application/json")
+		// json.NewEncoder(w).Encode(state)
+	} else {
+		move(&state, t.From, t.To)
 	}
-
-	move(&state, t.From, t.To)
-
 	if canMove() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(state)
@@ -262,25 +280,16 @@ func rollDice() []int {
 }
 
 func isLegalMove(state *GameState, from int, to int) bool {
-	if !canMove() {
-		return false
-	}
-
-	if state.WhiteWon || state.BlackWon {
-		return false
-	}
-
-	//check correct checkers are moving accoridng to player turn
-	if state.WhiteTurn && from != -1 && state.Board.Columns[from].WhiteCheckers == 0 {
-		return false
-	}
-
-	if !state.WhiteTurn && from != -1 && state.Board.Columns[from].BlackCheckers == 0 {
+	if !canMove() ||
+		state.WhiteWon ||
+		state.BlackWon ||
+		from == to ||
+		state.WhiteTurn && from != -1 && state.Board.Columns[from].WhiteCheckers == 0 ||
+		!state.WhiteTurn && from != -1 && state.Board.Columns[from].BlackCheckers == 0 {
 		return false
 	}
 
 	if state.WhiteTurn {
-
 		if from == -1 {
 
 			//no checkers out
@@ -501,7 +510,7 @@ func allPlayersCheckersOnHome() bool {
 	// assumes that no checkers are on grey board
 	if state.WhiteTurn {
 		for idx, column := range state.Board.Columns {
-			if idx < 19 && column.WhiteCheckers > 0 {
+			if idx < 18 && column.WhiteCheckers > 0 {
 				return false
 			}
 		}
@@ -545,12 +554,12 @@ func anyCheckerCanMoveWithDice() bool {
 				if die > 0 {
 					if state.WhiteTurn {
 						destination := die + idx
-						if destination >= 0 && destination < 24 && state.Board.Columns[destination].BlackCheckers == 0 {
+						if destination >= 0 && destination < 24 && state.Board.Columns[destination].BlackCheckers < 2 {
 							return true
 						}
 					} else {
 						destination := idx - die
-						if destination >= 0 && destination < 24 && state.Board.Columns[destination].WhiteCheckers == 0 {
+						if destination >= 0 && destination < 24 && state.Board.Columns[destination].WhiteCheckers < 2 {
 							return true
 						}
 					}
@@ -573,6 +582,49 @@ func canMove() bool {
 
 	// fmt.Println("checking anyCheckerCanMoveWithDice")
 	return anyCheckerCanMoveWithDice()
+}
+
+func randomMove() {
+	for _, die := range state.Dice {
+		if die != 0 {
+			if isCurrentPlayerEaten() {
+				if anyReturnToBoardDestination() {
+					if state.WhiteTurn && isLegalMove(&state, -1, die-1) {
+						move(&state, -1, die-1)
+						break
+					} else if !state.WhiteTurn && isLegalMove(&state, -1, 24-die) {
+						move(&state, -1, 24-die)
+					}
+				}
+			} else {
+				foundRandomMove := false
+				for checkerIdx, checker := range state.Board.Columns {
+					newPos := checkerIdx
+
+					if allPlayersCheckersOnHome() && anyCheckerToBearOff() {
+						newPos = -1
+					} else {
+						if state.WhiteTurn && checker.WhiteCheckers > 0 {
+							newPos = checkerIdx + die
+						} else if !state.WhiteTurn && checker.BlackCheckers > 0 {
+							newPos = checkerIdx - die
+						}
+					}
+
+					if ((state.WhiteTurn && checker.WhiteCheckers > 0) || (!state.WhiteTurn && checker.BlackCheckers > 0)) &&
+						isLegalMove(&state, checkerIdx, newPos) {
+						move(&state, checkerIdx, newPos)
+						foundRandomMove = true
+						break
+					}
+				}
+
+				if foundRandomMove {
+					break
+				}
+			}
+		}
+	}
 }
 
 func move(state *GameState, from int, to int) int {
@@ -705,9 +757,22 @@ func move(state *GameState, from int, to int) int {
 		state.BlackWon = true
 	}
 
+	if state.WhiteWon || state.BlackWon {
+		jsonResult, jsonErr := json.Marshal(history)
+
+		if jsonErr != nil {
+			fmt.Println(jsonErr)
+		} else {
+			timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+			ioutil.WriteFile("game_result_"+timestamp+".json", jsonResult, 0644)
+		}
+	}
+
 	if shouldSwitchTurn {
 		switchTurn()
 	}
+
+	history = append(history, *state)
 
 	return 0
 }
@@ -755,6 +820,8 @@ func main() {
 	handler := corsConfig.Handler(router)
 
 	initState(&state)
+	history = append(history, state)
+
 	printBoard(state.Board)
 
 	log.Fatal(http.ListenAndServe(":7861", handler))
