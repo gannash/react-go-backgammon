@@ -10,7 +10,7 @@ import Menu from '../components/Menu/Menu';
 import HttpClient from '../HttpClient';
 
 import GAMEFILE from '../game_result_1569500154082856100.json';
-const PLAY_FROM_FILE = true;
+const PLAY_FROM_FILE = false;
 
 const rectPos = (id) => {
   const triangles = document.getElementsByClassName('triangle');
@@ -151,6 +151,7 @@ class App extends Component {
   handleGameStateUpdate(data) {
     this.updateStateFromServer(data);
     if (data.Status && data.Status.includes("NO_MOVES")) {
+      this.setState({ gamestatus: 50 });
       setTimeout(this.getAndUpdateStateFromServer, 2000);
     }
   }
@@ -180,7 +181,10 @@ class App extends Component {
     const outSideBar = { checkersP1: board.whiteOutCheckers, checkersP2: board.blackOutCheckers };
     const movingChecker = false;
     let gameStatus = 11;
-    if (data.WhiteWon) {
+    if(data.Status === 'NO_MOVES') {
+      gameStatus = 50;
+    }
+    else if (data.WhiteWon) {
       gameStatus = 60;
     } else if (data.BlackWon) {
       gameStatus = 70;
@@ -277,10 +281,10 @@ class App extends Component {
   rollDiceHandler = () => {
 
     //if gameStatus is 50, that means there is no moves available for the current player
-    const p1IsNext = this.state.gameStatus === 50 ? !this.state.p1IsNext : this.state.p1IsNext;
+    // const p1IsNext = this.state.gameStatus === 50 ? !this.state.p1IsNext : this.state.p1IsNext;
     //new dice
     // const dice = [];
-    const { dice } = this.state;
+    const { dice, p1IsNext } = this.state;
     //Get two random numbers
     // dice.push(Math.floor(Math.random() * 6) + 1);
     // dice.push(Math.floor(Math.random() * 6) + 1);
