@@ -9,8 +9,8 @@ import Menu from '../components/Menu/Menu';
 
 import HttpClient from '../HttpClient';
 
-import GAMEFILE from '../game_result_1569500154082856100.json';
-const PLAY_FROM_FILE = false;
+import GAMEFILE from '../game_result_1570444290912486500.json';
+const PLAY_FROM_FILE = true;
 
 const rectPos = (id) => {
   const triangles = document.getElementsByClassName('triangle');
@@ -18,10 +18,10 @@ const rectPos = (id) => {
 }
 
 const getSvgPath = (p1, p2) => {
-  const dummyPoint = { left: 0, right: 0 };
+  const dummyPoint = { left: 1, right: 1, top: 1, bottom: 1 };
 
   const p1Pos = p1 >= 0 ? rectPos(p1) : dummyPoint;
-  const p2Pos = rectPos(p2);
+  const p2Pos = p2 >= 0 ? rectPos(p2) : dummyPoint;
 
   if (!p1Pos || !p2Pos) {
     return '';
@@ -32,15 +32,37 @@ const getSvgPath = (p1, p2) => {
   let p2X = Math.abs((p2Pos.left + p2Pos.right) / 2);
   let p2Y = Math.abs((p2Pos.top + p2Pos.bottom) / 2);
 
-  if (p1 === -1) {
-    p1X = p2X;
-    p1Y = p2Y - 60;
+  if (p1 < 0) {
+    if (p2 < 18 && p2 > 11) {
+      p1X = p2X;
+      p1Y = p2Y + 120;
+    } else if (p2 > 17 && p2 < 24) {
+      p1X = p2X;
+      p1Y = p2Y - 120;
+    }
+  }
+
+  if (p2 < 0) {
+    p2Y = p1Y;
+    p2X = 1150;
+  }
+
+  if (p1Y === p2Y) {
+    if (p1X > p2X) {
+      p2X = p2X + 30;
+    } else {
+      p2X = p2X - 30;
+    }
   }
 
   return `M ${p1X},${p1Y} L ${p2X},${p2Y}`;
 }
 
 const columnToTriangleNumber = (columnId) => {
+  if (columnId === null) {
+    return -1;
+  }
+
   if (columnId >= 0 && columnId <= 5) { // top-left
     return 23 - columnId;
   } else if (columnId > 5 && columnId <= 11) { // bottom-left
@@ -54,6 +76,7 @@ const columnToTriangleNumber = (columnId) => {
 
 const calculatePlayPath = (prevState, nextState) => {
   let c1 = null, c2 = null;
+
   for (let i = 0; i < 24 && c2 === null; i++) {
     if (prevState.Board.columns[i].whiteCheckers !== nextState.Board.columns[i].whiteCheckers
       || prevState.Board.columns[i].BlackCheckers !== nextState.Board.columns[i].BlackCheckers) {
@@ -74,6 +97,10 @@ const calculatePlayPath = (prevState, nextState) => {
 
   if (nextState.Board.blackEaten - prevState.Board.blackEaten < 0) {
     return { from: -1, to: c1 };
+  }
+
+  if (c2 === null) {
+    return { from: c1, to: null };
   }
 
   return { from: c2, to: c1 };
@@ -126,6 +153,12 @@ class App extends Component {
   runGameFromFile(data) {
     let currentStep = 0;
     let prevState = null;
+
+    (() => {
+      const currentState = data[currentStep];
+      this.handleGameStateUpdate(currentState);
+    })();
+
     const runGameInterval = setInterval(() => {
       if (currentStep === data.length - 1) {
         clearInterval(runGameInterval);
@@ -142,10 +175,11 @@ class App extends Component {
 
       setTimeout(() => {
         this.handleGameStateUpdate(currentState);
+        document.getElementById('game-arrow').setAttribute('d', '');
       }, 1000);
 
       prevState = currentState;
-    }, 2000)
+    }, 2500)
   }
 
   handleGameStateUpdate(data) {
@@ -180,8 +214,10 @@ class App extends Component {
     const grayBar = { checkersP1: board.whiteEaten, checkersP2: board.blackEaten };
     const outSideBar = { checkersP1: board.whiteOutCheckers, checkersP2: board.blackOutCheckers };
     const movingChecker = false;
+    const players = { p1: data.Players[0].teamName, p2: data.Players[1].teamName };
+
     let gameStatus = 11;
-    if(data.Status === 'NO_MOVES') {
+    if (data.Status === 'NO_MOVES') {
       gameStatus = 50;
     }
     else if (data.WhiteWon) {
@@ -211,6 +247,7 @@ class App extends Component {
       outSideBar,
       movingChecker,
       gameStatus,
+      players,
     }, this.rollDiceHandler);
   }
 
@@ -619,11 +656,11 @@ class App extends Component {
     //Remove the checker from orign and clean point if it has no checker
     if (movingChecker >= 0 && movingChecker <= 23) {
       points[movingChecker].checkers--;
-
+ 
       if (points[movingChecker].checkers === 0) {
         points[movingChecker].player = false; //unassign point if there is no checker
       }
-
+ 
     }
     else { //remove from graybar
       if (movingChecker === -1) {//remove p1 from gray bar
@@ -633,12 +670,12 @@ class App extends Component {
         grayBar.checkersP2--;
       }
     }
-
+ 
     //Moving checker inside the board
     if (destination <= 23 && destination >= 0) {
       if (points[destination].player === this.getPlayer(p1IsNext)
         || points[destination].player === false) { //Point either belongs to player or to nobody
-
+ 
         //Add checker to destination
         points[destination].checkers++;
       }
@@ -660,15 +697,15 @@ class App extends Component {
         outSideBar.checkersP2++;
       }
     }
-
+ 
     //Moving checker now is false
     movingChecker = false;
-
+ 
     //remove die from dice
     const diceIndex = dice.findIndex((dieNumber) => dieNumber === die);
     dice.splice(diceIndex, 1);
     console.log("Played die " + die);
-
+ 
     //Change player if no die
     if (dice.length === 0) {
       dice[0] = 0;
@@ -678,11 +715,11 @@ class App extends Component {
       points = moves.points;
       gameStatus = moves.gameStatus;
     }
-
+ 
     const currentPosition = this.state.currentPosition + 1;
     const history = [...this.state.history];
     history.push(this.setHistory(p1IsNext, dice, points, grayBar, outSideBar));
-
+ 
     //Check if all checkers are in the outside bar
     if (outSideBar.checkersP1 === 15) {
       gameStatus = 60; //Player one wins
@@ -696,13 +733,18 @@ class App extends Component {
     // console.log(this.state.points);
 
     const playerID = (() => {
+      const player1Id = 9829373;
+      const player2Id = 77880951;
+
       if (movingChecker < 0) {
-        return this.state.p1IsNext ? 0 : 1;
+        return this.state.p1IsNext ? player1Id : player2Id;
       }
 
       const { player } = this.state.points[movingChecker];
-      if (player === 1 || player === 2) {
-        return player - 1;
+      if (player === 1) {
+        return player1Id;
+      } else if (player === 2) {
+        return player2Id;
       }
 
       return -50;
