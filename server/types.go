@@ -7,7 +7,8 @@ type GameState struct {
 	WhiteWon  bool
 	BlackWon  bool
 	Status    string
-	state     string //waiting for players, game on, game ended
+	State     string //waiting for players, game on, game ended
+	Players	  [2]Player
 }
 
 //GameManager ..

@@ -1,19 +1,16 @@
 package main
 
-import (
-	"math/rand"
-)
+// "math/rand"
 
 func initState(state *GameState) {
-	state.WhiteTurn = rand.Intn(2) == 0
+	state.WhiteTurn = false //rand.Intn(2) == 0
 	state.WhiteWon = false
 	state.BlackWon = false
 	state.Dice = rollDice()
 
 	initBoard(&state.Board)
-	state.state = WAITING_PLAYERS
+	state.State = WAITING_PLAYERS
 }
-
 
 func initBoard(board *Board) {
 	for i := 0; i < 24; i++ {

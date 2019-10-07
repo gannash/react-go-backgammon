@@ -22,12 +22,19 @@ func registerAPI(w http.ResponseWriter, r *http.Request) {
 		if gameManager.player1.TeamName == "" {
 			p.Color = "White"
 			gameManager.player1 = p
+			
+			state.Players[0] = gameManager.player1
+			
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(p)
 		} else if gameManager.player2.TeamName == "" {
 			p.Color = "Black"
 			gameManager.player2 = p
-			state.state = GAME_RUNNING
+			
+			state.State = GAME_RUNNING
+			
+			state.Players[1] = gameManager.player2
+
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(p)
 		} else {
