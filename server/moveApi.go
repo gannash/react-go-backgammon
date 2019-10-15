@@ -377,6 +377,8 @@ func randomMove() {
 			}
 		}
 	}
+
+	updateTimestamp()
 }
 
 func move(state *GameState, from int, to int) int {
@@ -534,7 +536,13 @@ func move(state *GameState, from int, to int) int {
 	diceCopy := []int{state.Dice[0], state.Dice[1], state.Dice[2], state.Dice[3]}
 	history[len(history)-1].Dice = diceCopy
 
+	updateTimestamp()
+
 	return 0
+}
+
+func updateTimestamp() {
+	lastPlayTimestamp = time.Now()
 }
 
 func moveAPI(w http.ResponseWriter, r *http.Request) {
@@ -590,20 +598,19 @@ func moveAPI(w http.ResponseWriter, r *http.Request) {
 		// fmt.Fprintf(w, "move is illegal, a random move has been played")
 
 		//complete automatic move
-
 		state.Status = "ILLEGAL_MOVE"
+
 		randomMove()
 		// w.Header().Set("Content-Type", "application/json")
 		// json.NewEncoder(w).Encode(state)
 	} else {
 		move(&state, t.From, t.To)
 	}
+
 	if canMove() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(state)
 	} else {
 		sendStateWithError(w)
 	}
-
-	// fmt.Println(t)
 }

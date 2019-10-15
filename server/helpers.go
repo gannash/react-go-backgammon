@@ -57,3 +57,14 @@ func sendStateWithError(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(state)
 	time.AfterFunc(2*time.Second, switchTurn)
 }
+
+func checkTimeout() {
+	currentTime := time.Now()
+	diff := currentTime.Sub(lastPlayTimestamp).Seconds()
+
+	if diff >= 10 {
+		randomMove()
+	}
+
+	time.AfterFunc(time.Second, checkTimeout)
+}

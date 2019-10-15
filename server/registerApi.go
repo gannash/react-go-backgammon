@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"time"
 )
 
 func registerAPI(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +35,9 @@ func registerAPI(w http.ResponseWriter, r *http.Request) {
 			state.State = GAME_RUNNING
 			
 			state.Players[1] = gameManager.player2
+
+			lastPlayTimestamp = time.Now()
+			checkTimeout()
 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(p)
